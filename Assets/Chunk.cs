@@ -8,6 +8,8 @@ public class Chunk
     public Block[,,] chunkdata;
     public GameObject goChunk;
     Material material;
+    public enum ChunkStatus { DRAW, DONE};
+    public ChunkStatus status;
 
     public Chunk(Vector3 pos, Material material)
     {
@@ -34,9 +36,11 @@ public class Chunk
                     int h = Utils.GenerateHeight(worldX,worldZ);
                     int hs = Utils.GenerateStoneHeight(worldX, worldZ);
 
+                    //Grapher.Log(Utils.fBM3d(worldX, worldY, worldZ, 1, 0.5f), "Noise 3d", Color.yellow);
+
                     if(worldY<= hs)
                     {
-                        if(Utils.fBM3d(worldX, worldY, worldZ, 1, 0.5f)<0.7f)
+                        if(Utils.fBM3d(worldX, worldY, worldZ, 1, 0.5f)<0.5f)
                             chunkdata[x, y, z] = new Block(Block.BlockType.STONE,
                          pos, this, material);
                         else
@@ -55,6 +59,7 @@ public class Chunk
                 }
             }
         }
+        status = ChunkStatus.DRAW;
     }
 
     public void DrawChunk()
@@ -67,6 +72,7 @@ public class Chunk
         CombineQuads();
         MeshCollider collider = goChunk.AddComponent<MeshCollider>();
         collider.sharedMesh = goChunk.GetComponent<MeshFilter>().mesh;
+        status = ChunkStatus.DONE;
     }
 
 

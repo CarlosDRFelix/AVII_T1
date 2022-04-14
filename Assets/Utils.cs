@@ -5,9 +5,11 @@ using UnityEngine;
 public class Utils 
 {
     static float smooth = 0.01f;
+    static float smooth3d = 10f * smooth;
     static int maxHeight = 50;
     static int octaves = 6;
     static float persistence = 0.7f;
+    static float offset = 32000;
 
 
     public static int GenerateHeight(float x, float z)
@@ -29,12 +31,12 @@ public class Utils
 
     public static float fBM3d(float x, float y, float z, int octaves, float persistence)
     {
-        float xy = fBM(x * smooth, y * smooth, octaves, persistence);
-        float yx = fBM(y * smooth, x * smooth, octaves, persistence);
-        float xz = fBM(x * smooth, z * smooth, octaves, persistence);
-        float zx = fBM(z * smooth, x * smooth, octaves, persistence);
-        float zy = fBM(z * smooth, y * smooth, octaves, persistence);
-        float yz = fBM(y * smooth, z * smooth, octaves, persistence);
+        float xy = fBM(x * smooth3d, y * smooth3d, octaves, persistence);
+        float yx = fBM(y * smooth3d, x * smooth3d, octaves, persistence);
+        float xz = fBM(x * smooth3d, z * smooth3d, octaves, persistence);
+        float zx = fBM(z * smooth3d, x * smooth3d, octaves, persistence);
+        float zy = fBM(z * smooth3d, y * smooth3d, octaves, persistence);
+        float yz = fBM(y * smooth3d, z * smooth3d, octaves, persistence);
 
         return (xy + yx + xz + zx + yz + zy) / 6;
     }
@@ -49,7 +51,7 @@ public class Utils
 
         for (int i=0; i < octaves; i++)
         {
-            total += Mathf.PerlinNoise(x*frequency, z * frequency) * amplitude;
+            total += Mathf.PerlinNoise((x+offset)*frequency, (z+offset) * frequency) * amplitude;
             maxValue += amplitude;
             amplitude *= persistence;
             frequency *= 2;

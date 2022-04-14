@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -9,7 +10,11 @@ public class World : MonoBehaviour
 
     public static int chunkSize = 16;
     public static int radius = 4;
-    public static Dictionary<string, Chunk> chunkDict;
+    public static ConcurrentDictionary<string, Chunk> chunkDict;
+    public static List<string> toRemove = new List<string>();
+    Vector3 lastBuildPos;
+    bool drawing;
+
 
 
     //create unique name for the chunk
@@ -18,20 +23,29 @@ public class World : MonoBehaviour
         return (int)v.x + " " + (int)v.y + " " + (int)v.z;
     }
 
-    void BuildRecursiveWorld(Vector3 chunkPos, int rad)
+    IEnumerator BuildRecursiveWorld(Vector3 chunkPos, int rad)
     {
         BuildChunkAt(chunkPos);
         int x = (int)chunkPos.x;
         int y = (int)chunkPos.y;
         int z = (int)chunkPos.z;
 
-        if (--rad < 0) return;
-        BuildRecursiveWorld(new Vector3(x, y, z + chunkSize), rad - 1);
-        BuildRecursiveWorld(new Vector3(x, y, z - chunkSize), rad - 1);
-        BuildRecursiveWorld(new Vector3(x + chunkSize, y, z + chunkSize), rad - 1);
-        BuildRecursiveWorld(new Vector3(x - chunkSize, y, z + chunkSize), rad - 1);
-        BuildRecursiveWorld(new Vector3(x, y + chunkSize, z + chunkSize), rad - 1);
-        BuildRecursiveWorld(new Vector3(x, y - chunkSize, z + chunkSize), rad - 1);
+        BuildChunkAt(chunkPos);
+        yield return null;
+
+        if (--rad < 0) yield break;
+        Building(new Vector3(x, y, z + chunkSize), rad - 1);
+        yield return null;
+        Building(new Vector3(x, y, z - chunkSize), rad - 1);
+        yield return null;
+        Building(new Vector3(x + chunkSize, y, z), rad - 1);
+        yield return null;
+        Building(new Vector3(x - chunkSize, y, z ), rad - 1);
+        yield return null;
+        Building(new Vector3(x, y + chunkSize, z ), rad - 1);
+        yield return null;
+        Building(new Vector3(x, y - chunkSize, z ), rad - 1);
+        yield return null;
 
     }
 
@@ -44,24 +58,70 @@ public class World : MonoBehaviour
             
             c = new Chunk(chunkPos, material);
             c.goChunk.transform.parent = this.transform;
-            chunkDict.Add(c.goChunk.name, c);
+            chunkDict.TryAdd(c.goChunk.name, c);
         }
     }
 
-    void DrawChunks()
+    IEnumerator RemoveChunks()
     {
+        for (int i = 0; i < toRemove.Count; i++)
+        {
+            string name = toRemove[i];
+            Chunk c;
+            if (chunkDict.TryGetValue(name, out c))
+            {
+                Destroy(c.goChunk);
+                chunkDict.TryRemove(name, out c);
+                yield return null;
+            }
+        }
+    }
+
+    /*void Removing()
+    {
+        StartCoroutine(RemoveChunks());
+    }*/
+
+
+    IEnumerator DrawChunks()
+    {
+        drawing = true;
         foreach (KeyValuePair<string, Chunk> c in chunkDict)
         {
-            c.Value.DrawChunk();
+            if(c.Value.status == Chunk.ChunkStatus.DRAW)
+            {
+                c.Value.DrawChunk();
+                yield return null;
+
+            }
+            if (c.Value.goChunk && Vector3.Distance
+                (player.transform.position,c.Value.goChunk.transform.position)
+                >chunkSize*radius)
+            {
+                toRemove.Add(c.Key);
+            }    
         }
+        StartCoroutine(RemoveChunks());
+        drawing = false;
+    }
+
+    void Building(Vector3 chunkPos, int rad)
+    {
+        StartCoroutine(BuildRecursiveWorld(chunkPos, rad));
+
+    }
+
+    void Drawing()
+    {
+        StartCoroutine(DrawChunks());
     }
 
     Vector3 WhichChunk(Vector3 position)
     {
         Vector3 chunkPos = new Vector3();
-        chunkPos.x = (int)(position.x / chunkSize) * chunkSize;
-        chunkPos.y = (int)(position.y / chunkSize) * chunkSize;
-        chunkPos.z = (int)(position.z / chunkSize) * chunkSize;
+        chunkPos.x = Mathf.Floor(position.x / chunkSize) * chunkSize;
+        chunkPos.y = Mathf.Floor(position.y / chunkSize) * chunkSize;
+        chunkPos.z = Mathf.Floor(position.z / chunkSize) * chunkSize;
 
         return chunkPos;
     }
@@ -69,16 +129,28 @@ public class World : MonoBehaviour
     void Start()
     {
         player.SetActive(false);
-        chunkDict = new Dictionary<string, Chunk>();
+        chunkDict = new ConcurrentDictionary<string, Chunk>();
         this.transform.position = Vector3.zero;
         this.transform.rotation = Quaternion.identity;
 
         Vector3 playerPosition = player.transform.position;
         player.transform.position = new Vector3(playerPosition.x,
             Utils.GenerateHeight(playerPosition.x, playerPosition.z)+3, playerPosition.z);
-
-        BuildRecursiveWorld(WhichChunk(player.transform.position), radius);
-        DrawChunks();
+        lastBuildPos = player.transform.position;
+        
+        Building(WhichChunk(lastBuildPos), radius);
+        Drawing();
         player.SetActive(true);
+    }
+    private void Update()
+    {
+        Vector3 movement = player.transform.position - lastBuildPos;
+        if(movement.magnitude > chunkSize)
+        {
+            lastBuildPos = player.transform.position;
+            Building(WhichChunk(lastBuildPos), radius);
+            Drawing();
+        }
+        if(!drawing) Drawing();
     }
 }
